@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kacamata AI — Dashboard Prediksi</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:'Segoe UI',sans-serif;
+            background:#0f0f0f; color:#fff; min-height:100vh;
+        }
+
+        header {
+            background:#1a1a2e; padding:18px 24px;
+            border-bottom:2px solid #00ff88;
+            display:flex; justify-content:space-between; align-items:center;
+        }
+        header h1 { color:#00ff88; font-size:1.2rem; }
+        header p  { color:#666; font-size:0.8rem; margin-top:2px; }
+        .live-btn {
+            padding:8px 18px; background:#00ff88; color:#000;
+            border-radius:8px; text-decoration:none;
+            font-weight:bold; font-size:0.85rem; white-space:nowrap;
+        }
+
+        .container { max-width:1200px; margin:0 auto; padding:20px; }
+
+        /* Kartu risiko */
+        .risiko-card {
+            border-radius:16px; padding:28px; margin-bottom:20px;
+            display:flex; align-items:center; gap:24px; transition:all 0.5s;
+        }
+        .risiko-rendah { background:#00ff8811; border:1px solid #00ff88; }
+        .risiko-sedang { background:#ff880011; border:1px solid #ff8800; }
+        .risiko-tinggi {
+            background:#ff444411; border:1px solid #ff4444;
+            animation:pulse 1s infinite alternate;
+        }
+        @keyframes pulse { from{opacity:1} to{opacity:0.7} }
+        .risiko-angka { font-size:3.5rem; font-weight:bold; line-height:1; }
+        .risiko-rendah .risiko-angka { color:#00ff88; }
+        .risiko-sedang .risiko-angka { color:#ff8800; }
+        .risiko-tinggi .risiko-angka { color:#ff4444; }
+        .risiko-info h2 { font-size:1.1rem; margin-bottom:5px; }
+        .risiko-info p  { color:#888; font-size:0.85rem; line-height:1.5; }
+
+        /* Grid */
+        .grid-3 {
+            display:grid; grid-template-columns:repeat(3,1fr);
+            gap:16px; margin-bottom:20px;
+        }
+        .grid-2 {
+            display:grid; grid-template-columns:1fr 1fr;
+            gap:16px; margin-bottom:20px;
+        }
+        @media(max-width:900px){ .grid-3{ grid-template-columns:1fr 1fr; } }
+        @media(max-width:600px){ .grid-3,.grid-2{ grid-template-columns:1fr; } }
+
+        .card {
+            background:#111; border-radius:12px;
+            padding:18px; border:1px solid #222;
+        }
+        .card h3 {
+            font-size:0.75rem; color:#666;
+            text-transform:uppercase; letter-spacing:1px; margin-bottom:14px;
+        }
+
+        /* Stat besar */
+        .stat-besar { text-align:center; padding:8px 0; }
+        .stat-besar .angka { font-size:2.8rem; font-weight:bold; color:#00ff88; }
+        .stat-besar .label { color:#666; font-size:0.8rem; margin-top:4px; }
+
+        /* Bar objek */
+        .objek-item { margin-bottom:14px; }
+        .objek-header {
+            display:flex; justify-content:space-between;
+            font-size:0.83rem; margin-bottom:5px;
+        }
+        .objek-bar { height:8px; background:#222; border-radius:4px; overflow:hidden; }
+        .objek-fill {
+            height:100%; background:#00ff88; border-radius:4px;
+            transition:width 1s ease;
+        }
+
+        /* Jam berbahaya */
+        .jam-item {
+            display:flex; align-items:center; gap:12px;
+            padding:10px; background:#1a1a1a;
+            border-radius:8px; margin-bottom:8px;
+        }
+        .jam-badge {
+            background:#ff444422; color:#ff4444;
+            border:1px solid #ff4444; padding:4px 10px;
+            border-radius:20px; font-size:0.8rem;
+            font-weight:bold; min-width:58px; text-align:center;
+        }
+        .jam-detail { font-size:0.82rem; }
+        .jam-sub    { color:#555; font-size:0.75rem; margin-top:2px; }
+
+        /* Tabel riwayat */
+        .tabel-wrap { overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+        th {
+            text-align:left; padding:8px 10px;
+            color:#555; border-bottom:1px solid #1a1a1a;
+            white-space:nowrap;
+        }
+        td { padding:8px 10px; border-bottom:1px solid #111; }
+        .badge { padding:2px 8px; border-radius:20px; font-size:0.72rem; }
+        .bahaya { background:#ff444422; color:#ff4444; border:1px solid #ff444455; }
+        .aman   { background:#00ff8822; color:#00ff88; border:1px solid #00ff8855; }
+
+        .loading {
+            color:#555; font-size:0.82rem;
+            padding:20px; text-align:center;
+        }
+        .update-info {
+            color:#333; font-size:0.72rem;
+            text-align:right; margin-top:12px;
+        }
+        .error-msg {
+            color:#ff4444; font-size:0.82rem;
+            padding:12px; text-align:center;
+            background:#ff444411; border-radius:8px;
+        }
+
+        /* Peringatan tidak cukup data */
+        .info-box {
+            background:#00aaff11; border:1px solid #00aaff44;
+            border-radius:8px; padding:12px;
+            color:#00aaff; font-size:0.83rem; line-height:1.5;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>👓 Kacamata AI — Dashboard Prediksi & Monitoring</h1>
+        <p>Analisis pola & prediksi berbasis data historis</p>
+    </div>
+    <a href="https://GANTI_URL_RAILWAY" target="_blank" class="live-btn">
+        🔴 Live Feed
+    </a>
+</header>
+
+<div class="container">
+
+    <!-- Kartu Risiko -->
+    <div class="risiko-card risiko-rendah" id="risiko-card">
+        <div class="risiko-angka" id="risiko-angka">--%</div>
+        <div class="risiko-info">
+            <h2 id="risiko-judul">Memuat prediksi risiko...</h2>
+            <p id="risiko-desc">Menganalisis data historis untuk jam ini</p>
+        </div>
+    </div>
+
+    <!-- Statistik Ringkas -->
+    <div class="grid-3">
+        <div class="card">
+            <h3>Total Deteksi</h3>
+            <div class="stat-besar">
+                <div class="angka" id="total-deteksi">--</div>
+                <div class="label">sejak sistem aktif</div>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Tingkat Keamanan</h3>
+            <div class="stat-besar">
+                <div class="angka" id="tingkat-aman">--%</div>
+                <div class="label">waktu dalam kondisi aman</div>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Data Tersimpan</h3>
+            <div class="stat-besar">
+                <div class="angka" id="total-data" style="color:#888">--</div>
+                <div class="label">total log di database</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+
+        <!-- Prediksi Objek Jam Ini -->
+        <div class="card">
+            <h3>🔮 Prediksi Objek — Jam Ini</h3>
+            <div id="prediksi-objek">
+                <div class="loading">Memuat prediksi...</div>
+            </div>
+        </div>
+
+        <!-- Jam Paling Berbahaya -->
+        <div class="card">
+            <h3>⚠️ Jam Paling Berbahaya</h3>
+            <div id="jam-bahaya">
+                <div class="loading">Memuat analisis...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Grafik Tren 7 Hari -->
+    <div class="card" style="margin-bottom:20px">
+        <h3>📈 Tren Deteksi 7 Hari Terakhir</h3>
+        <canvas id="chart-tren" height="75"></canvas>
+    </div>
+
+    <div class="grid-2">
+
+        <!-- Distribusi Objek -->
+        <div class="card">
+            <h3>🥧 Distribusi Objek Terdeteksi</h3>
+            <canvas id="chart-objek" height="220"></canvas>
+        </div>
+
+        <!-- Riwayat -->
+        <div class="card">
+            <h3>📋 Riwayat Terbaru</h3>
+            <div class="tabel-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>Objek</th>
+                            <th>Jarak</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="riwayat-body">
+                        <tr><td colspan="4" class="loading">Memuat...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="update-info" id="update-info">Belum diperbarui</div>
+
+</div>
+
+<script>
+// ── GANTI dengan URL Railway kamu ──
+const RAILWAY_URL = 'https://GANTI_URL_RAILWAY';
+
+let chartTren  = null;
+let chartObjek = null;
+
+async function loadSemua() {
+    await Promise.all([loadPrediksi(), loadRiwayat()]);
+    document.getElementById('update-info').textContent =
+        'Terakhir diperbarui: ' + new Date().toLocaleString('id-ID');
+}
+
+// ── Prediksi ──
+async function loadPrediksi() {
+    try {
+        const res = await fetch(`${RAILWAY_URL}/api/prediksi`);
+
+        if (res.status === 404) {
+            document.getElementById('risiko-card').innerHTML = `
+                <div class="info-box" style="width:100%">
+                    ℹ️ Data belum cukup untuk membuat prediksi.
+                    Sistem membutuhkan minimal 5 data deteksi.
+                    Arahkan kamera ke objek untuk mulai mengumpulkan data.
+                </div>`;
+            return;
+        }
+
+        const data   = await res.json();
+        const risiko = data.risiko_jam_ini;
+
+        // Kartu risiko
+        const card = document.getElementById('risiko-card');
+        const level = risiko.level.toLowerCase();
+        card.className = `risiko-card risiko-${level}`;
+        document.getElementById('risiko-angka').textContent = risiko.persen + '%';
+        document.getElementById('risiko-judul').textContent =
+            `Risiko ${risiko.level} — Jam ${risiko.jam}:00`;
+        document.getElementById('risiko-desc').textContent =
+            `Berdasarkan data historis, jam ${risiko.jam}:00 memiliki ` +
+            `tingkat bahaya ${risiko.persen}%. ` +
+            (level === 'tinggi' ? 'Harap ekstra waspada saat ini.' :
+             level === 'sedang' ? 'Tetap perhatikan lingkungan sekitar.' :
+             'Kondisi relatif aman berdasarkan histori.');
+
+        // Statistik
+        const totalDeteksi = data.objek_terbanyak.reduce((s,o) => s + o.total, 0);
+        document.getElementById('total-deteksi').textContent = totalDeteksi;
+        document.getElementById('tingkat-aman').textContent  = data.tingkat_keamanan + '%';
+        document.getElementById('total-data').textContent    = data.total_data;
+
+        // Prediksi objek jam ini
+        const maxK = Math.max(...data.prediksi_objek_jam_ini.map(o => o.kemungkinan), 1);
+        document.getElementById('prediksi-objek').innerHTML =
+            data.prediksi_objek_jam_ini.length === 0
+            ? '<div class="info-box">Belum ada data untuk jam ini.<br>Data akan tersedia setelah sistem berjalan beberapa jam.</div>'
+            : data.prediksi_objek_jam_ini.map(o => `
+                <div class="objek-item">
+                    <div class="objek-header">
+                        <span>${o.objek}</span>
+                        <span style="color:#00ff88">${o.kemungkinan}× terdeteksi</span>
+                    </div>
+                    <div class="objek-bar">
+                        <div class="objek-fill" style="width:${(o.kemungkinan/maxK)*100}%"></div>
+                    </div>
+                </div>
+            `).join('');
+
+        // Jam berbahaya
+        document.getElementById('jam-bahaya').innerHTML =
+            data.jam_paling_bahaya.length === 0
+            ? '<div class="info-box">Belum ada data kejadian berbahaya.</div>'
+            : data.jam_paling_bahaya.map((j,i) => `
+                <div class="jam-item">
+                    <span class="jam-badge">${String(j.jam).padStart(2,'0')}:00</span>
+                    <div>
+                        <div class="jam-detail">${j.frekuensi}× kejadian berbahaya</div>
+                        <div class="jam-sub">Peringkat ke-${i+1} paling berbahaya</div>
+                    </div>
+                </div>
+            `).join('');
+
+        buatChartTren(data.tren_harian);
+        buatChartObjek(data.objek_terbanyak);
+
+    } catch(e) {
+        console.error(e);
+        document.getElementById('risiko-card').innerHTML =
+            `<div class="error-msg">Gagal memuat prediksi. Pastikan server Railway aktif.</div>`;
+    }
+}
+
+// ── Chart tren ──
+function buatChartTren(tren) {
+    const ctx = document.getElementById('chart-tren').getContext('2d');
+    if (chartTren) chartTren.destroy();
+
+    if (!tren || tren.length === 0) {
+        ctx.fillStyle = '#555';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Belum ada data tren', ctx.canvas.width/2, 60);
+        return;
+    }
+
+    chartTren = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels  : tren.map(t => t.tanggal),
+            datasets: [{
+                label           : 'Total Deteksi',
+                data            : tren.map(t => t.total),
+                borderColor     : '#00ff88',
+                backgroundColor : '#00ff8822',
+                fill            : true,
+                tension         : 0.4,
+                pointBackgroundColor: '#00ff88',
+                pointRadius     : 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color:'#888' } }
+            },
+            scales: {
+                x: { ticks:{ color:'#666' }, grid:{ color:'#1a1a1a' } },
+                y: { ticks:{ color:'#666' }, grid:{ color:'#1a1a1a' }, beginAtZero:true }
+            }
+        }
+    });
+}
+
+// ── Chart distribusi objek ──
+function buatChartObjek(objek) {
+    const ctx = document.getElementById('chart-objek').getContext('2d');
+    if (chartObjek) chartObjek.destroy();
+
+    if (!objek || objek.length === 0) {
+        ctx.fillStyle = '#555';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Belum ada data objek', ctx.canvas.width/2, 80);
+        return;
+    }
+
+    const warna = [
+        '#00ff8844','#ff880044','#ff444444','#00aaff44','#aa00ff44'
+    ];
+    const warnaGaris = [
+        '#00ff88','#ff8800','#ff4444','#00aaff','#aa00ff'
+    ];
+
+    chartObjek = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels  : objek.map(o => o.objek),
+            datasets: [{
+                data           : objek.map(o => o.total),
+                backgroundColor: warna,
+                borderColor    : warnaGaris,
+                borderWidth    : 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels  : { color:'#888', padding:12, font:{ size:11 } }
+                }
+            }
+        }
+    });
+}
+
+// ── Riwayat ──
+async function loadRiwayat() {
+    try {
+        const res   = await fetch(`${RAILWAY_URL}/api/riwayat?limit=15`);
+        const data  = await res.json();
+        const tbody = document.getElementById('riwayat-body');
+
+        if (!data.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">Belum ada data riwayat</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map(r => {
+            const waktu = new Date(r.waktu).toLocaleString('id-ID', {
+                hour:'2-digit', minute:'2-digit',
+                day:'2-digit', month:'short'
+            });
+            return `
+                <tr>
+                    <td style="color:#666;white-space:nowrap">${waktu}</td>
+                    <td>${r.objek}</td>
+                    <td>${r.jarak ?? '-'} cm</td>
+                    <td>
+                        <span class="badge ${r.is_bahaya ? 'bahaya':'aman'}">
+                            ${r.is_bahaya ? '⚠ Bahaya':'✓ Aman'}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch(e) {
+        console.error(e);
+        document.getElementById('riwayat-body').innerHTML =
+            '<tr><td colspan="4" class="error-msg">Gagal memuat riwayat</td></tr>';
+    }
+}
+
+// Muat pertama kali
+loadSemua();
+
+// Refresh setiap 30 detik
+setInterval(loadSemua, 30000);
+</script>
+</body>
+</html>
